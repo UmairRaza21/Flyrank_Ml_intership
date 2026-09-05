@@ -9,63 +9,45 @@ permissions:
 
 jobs:
   bootstrap:
-    if: ${{ !hashFiles('.bootstrap-complete') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout submission repository
         uses: actions/checkout@v4
-
       - name: Copy the official FlyRank starter
         run: |
           git clone --depth 1 https://github.com/flyrank-bih/flyrank-ml-internship-starter.git /tmp/starter
           rsync -a --exclude='.git' --exclude='.github' /tmp/starter/ ./
           mkdir -p .github/workflows
           cp /tmp/starter/.github/workflows/* .github/workflows/
-
-      - name: Personalize notebook URLs and complete Your turn cells
+      - name: Personalize notebooks and complete Your turn cells
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-
-          repo = 'https://github.com/UmairRaza21/Flyrank_Ml_intership'
-          files = [
-              Path('notebooks/01_first_look_and_discovery.ipynb'),
-              Path('notebooks/02_your_first_readable_model.ipynb'),
-          ]
-
-          for path in files:
-              nb = json.loads(path.read_text())
+          repo='https://github.com/UmairRaza21/Flyrank_Ml_intership'
+          for path in [Path('notebooks/01_first_look_and_discovery.ipynb'),Path('notebooks/02_your_first_readable_model.ipynb')]:
+              nb=json.loads(path.read_text())
               for cell in nb['cells']:
-                  if cell.get('cell_type') != 'code':
-                      continue
-                  src = ''.join(cell.get('source', []))
-                  if 'REPO_URL = "https://github.com/flyrank-bih/flyrank-ml-internship-starter"' in src:
-                      src = src.replace('https://github.com/flyrank-bih/flyrank-ml-internship-starter', repo)
-                  if src.strip() == '# Your discovery here':
-                      src = '''# Week-1 discovery: does search volume correlate with impressions when impressions are non-zero?\nmask = df["impressions_90d"] > 0\ncorr_nonzero = df.loc[mask, "search_volume"].corr(df.loc[mask, "impressions_90d"])\nprint(f"Non-zero impressions correlation: {corr_nonzero:.3f}")\nprint("Observed/directional finding: the relationship is not a guarantee that higher search volume produces higher page impressions.")\n'''
-                  if src.strip() == '# Your experiment here':
-                      src = '''# Week-2 experiment: increase tree depth from 2 to 3 and compare Precision@50.\nfrom sklearn.tree import DecisionTreeClassifier\n\ntree3 = DecisionTreeClassifier(max_depth=3, class_weight="balanced", random_state=42)\ntree3.fit(X, y)\ntree3_score = tree3.predict_proba(X)[:, 1]\nprint(f"Depth-2 tree Precision@50: {precision_at_k(tree.predict_proba(X)[:,1], y, 50):.3f}")\nprint(f"Depth-3 tree Precision@50: {precision_at_k(tree3_score, y, 50):.3f}")\nprint("Experiment: a deeper tree can capture more interactions, but should be validated on held-out data before claiming better generalization.")\n'''
-                  cell['source'] = [line + '\n' for line in src.splitlines()]
-              path.write_text(json.dumps(nb, indent=1) + '\n')
+                  if cell.get('cell_type')!='code': continue
+                  src=''.join(cell.get('source',[]))
+                  src=src.replace('https://github.com/flyrank-bih/flyrank-ml-internship-starter',repo)
+                  if src.strip()=='# Your discovery here':
+                      src='''# Week-1 discovery: correlation when impressions are non-zero\nmask=df["impressions_90d"]>0\ncorr_nonzero=df.loc[mask,"search_volume"].corr(df.loc[mask,"impressions_90d"])\nprint(f"Non-zero impressions correlation: {corr_nonzero:.3f}")\n'''
+                  if src.strip()=='# Your experiment here':
+                      src='''# Week-2 experiment: increase tree depth from 2 to 3.\nfrom sklearn.tree import DecisionTreeClassifier\ntree3=DecisionTreeClassifier(max_depth=3,class_weight="balanced",random_state=42)\ntree3.fit(X,y)\ntree3_score=tree3.predict_proba(X)[:,1]\nprint(f"Depth-2 tree Precision@50: {precision_at_k(tree.predict_proba(X)[:,1],y,50):.3f}")\nprint(f"Depth-3 tree Precision@50: {precision_at_k(tree3_score,y,50):.3f}")\n'''
+                  cell['source']=[line+'\n' for line in src.splitlines()]
+              path.write_text(json.dumps(nb,indent=1)+'\n')
           PY
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt nbconvert jupyter
-
       - name: Execute Notebook 01
-        run: |
-          jupyter nbconvert --to notebook --execute --inplace notebooks/01_first_look_and_discovery.ipynb --ExecutePreprocessor.timeout=900
-
+        run: jupyter nbconvert --to notebook --execute --inplace notebooks/01_first_look_and_discovery.ipynb --ExecutePreprocessor.timeout=900
       - name: Execute Notebook 02
-        run: |
-          jupyter nbconvert --to notebook --execute --inplace notebooks/02_your_first_readable_model.ipynb --ExecutePreprocessor.timeout=900
-
+        run: jupyter nbconvert --to notebook --execute --inplace notebooks/02_your_first_readable_model.ipynb --ExecutePreprocessor.timeout=900
       - name: Mark bootstrap complete
         run: echo 'Official starter copied and Week 1-2 notebooks executed by GitHub Actions.' > .bootstrap-complete
-
       - name: Commit completed submission
         run: |
           rm -f .github/workflows/bootstrap-and-run.yml
